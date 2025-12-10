@@ -40,9 +40,9 @@ struct FileBrowserPane: View {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(
                     viewModel.mode.isRemote
-                        ? LinearGradient(colors: [.green.opacity(0.4), .green.opacity(0.1)], startPoint: .top, endPoint: .bottom)
+                        ? LinearGradient(colors: [.green.opacity(0.5), .green.opacity(0.2)], startPoint: .top, endPoint: .bottom)
                         : LinearGradient(colors: [theme.border1, theme.border2], startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1
+                    lineWidth: viewModel.mode.isRemote ? 2 : 1
                 )
         )
         .padding(10)
