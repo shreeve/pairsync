@@ -6,6 +6,8 @@ struct FileBrowserPane: View {
     let title: String
     @State private var hoveredItem: UUID?
     @State private var showConnectionBar = false
+    @State private var itemToDelete: FileItem?
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +46,21 @@ struct FileBrowserPane: View {
                 )
         )
         .padding(10)
+        .alert("Delete \(itemToDelete?.isDirectory == true ? "Folder" : "File")?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {
+                itemToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    viewModel.deleteItem(item)
+                    itemToDelete = nil
+                }
+            }
+        } message: {
+            if let item = itemToDelete {
+                Text("Are you sure you want to delete \"\(item.name)\"?\n\nThis action cannot be undone.")
+            }
+        }
     }
 
     private var header: some View {
@@ -223,6 +240,34 @@ struct FileBrowserPane: View {
                         onDoubleTap: { if item.isDirectory { viewModel.navigateTo(item.url) } }
                     )
                     .onHover { hoveredItem = $0 ? item.id : nil }
+                    .contextMenu {
+                        Button {
+                            if item.isDirectory {
+                                viewModel.navigateTo(item.url)
+                            }
+                        } label: {
+                            Label("Open", systemImage: "folder")
+                        }
+                        .disabled(!item.isDirectory)
+
+                        Divider()
+
+                        Button {
+                            viewModel.selectedItems.formSymmetricDifference([item.id])
+                        } label: {
+                            Label(viewModel.selectedItems.contains(item.id) ? "Deselect" : "Select",
+                                  systemImage: viewModel.selectedItems.contains(item.id) ? "checkmark.circle.fill" : "circle")
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            itemToDelete = item
+                            showDeleteConfirm = true
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .padding(.vertical, 4)

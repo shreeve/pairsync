@@ -669,6 +669,56 @@ class FileBrowserViewModel: ObservableObject {
         }
     }
 
+    func deleteItem(_ item: FileItem) {
+        if case .remote(let host) = mode {
+            // Delete remote file via SSH
+            deleteRemoteItem(host: host, path: item.url.path)
+        } else {
+            // Delete local file
+            deleteLocalItem(at: item.url)
+        }
+    }
+
+    private func deleteLocalItem(at url: URL) {
+        Task.detached { [weak self] in
+            do {
+                try FileManager.default.removeItem(at: url)
+                await MainActor.run {
+                    self?.refresh()
+                }
+            } catch {
+                await MainActor.run {
+                    print("Delete failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func deleteRemoteItem(host: String, path: String) {
+        Task.detached { [weak self] in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+            process.arguments = [host, "rm", "-rf", path]
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+
+                await MainActor.run {
+                    if process.terminationStatus == 0 {
+                        self?.refresh()
+                    } else {
+                        print("Remote delete failed with exit code: \(process.terminationStatus)")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    print("Remote delete error: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     func navigateUp() {
         if case .remote = mode {
             let parent = (remotePath as NSString).deletingLastPathComponent
