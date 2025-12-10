@@ -51,7 +51,7 @@ class ThemeManager: ObservableObject {
 
     // Hover/selection
     var hoverBg: Color { isDark ? .white.opacity(0.08) : Color(r: 0.0, g: 0.0, b: 0.0).opacity(0.05) }
-    var selectedBg: Color { isDark ? .cyan.opacity(0.18) : .cyan.opacity(0.15) }
+    var selectedBg: Color { isDark ? .cyan.opacity(0.35) : .cyan.opacity(0.3) }
 
     // Shadow
     var shadowColor: Color { isDark ? .black.opacity(0.4) : .black.opacity(0.1) }
@@ -523,7 +523,7 @@ class SyncManager: ObservableObject {
 
     func clearLogs() { syncLogs.removeAll() }
 
-    private func addLog(_ message: String, isError: Bool = false) {
+    func addLog(_ message: String, isError: Bool = false) {
         syncLogs.append(SyncLog(timestamp: Date(), message: message, isError: isError))
     }
 }
@@ -698,17 +698,25 @@ class FileBrowserViewModel: ObservableObject {
         Task.detached { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-            process.arguments = [host, "rm", "-rf", path]
+            // Pass the full command as a single argument - SSH will execute it on the remote
+            let escapedPath = path.replacingOccurrences(of: "'", with: "'\\''")
+            process.arguments = [host, "rm -rf '\(escapedPath)'"]
+
+            let errorPipe = Pipe()
+            process.standardError = errorPipe
 
             do {
                 try process.run()
                 process.waitUntilExit()
 
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+
                 await MainActor.run {
                     if process.terminationStatus == 0 {
                         self?.refresh()
                     } else {
-                        print("Remote delete failed with exit code: \(process.terminationStatus)")
+                        print("Remote delete failed (\(path)): \(errorOutput)")
                     }
                 }
             } catch {

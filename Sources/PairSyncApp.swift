@@ -11,8 +11,7 @@ struct PairSyncApp: App {
                 .environmentObject(syncManager)
                 .environmentObject(theme)
         }
-        .windowStyle(.titleBar)
-        .windowToolbarStyle(.unified(showsTitle: false))
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1400, height: 900)
         .commands {
             CommandGroup(replacing: .newItem) {}

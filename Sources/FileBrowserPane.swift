@@ -435,10 +435,20 @@ struct FileRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: item.icon)
-                .font(.system(size: 13))
-                .foregroundColor(item.iconColor)
-                .frame(width: 18)
+            // Selection indicator
+            ZStack {
+                Image(systemName: item.icon)
+                    .font(.system(size: 13))
+                    .foregroundColor(isSelected ? .cyan : item.iconColor)
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.cyan)
+                        .offset(x: 8, y: 6)
+                }
+            }
+            .frame(width: 18)
 
             Text(item.name)
                 .font(.system(size: 12))
@@ -456,7 +466,7 @@ struct FileRow: View {
             Text(item.formattedDate)
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(theme.textMuted)
-                .frame(width: 110, alignment: .trailing)
+                .frame(width: 130, alignment: .trailing)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
@@ -466,7 +476,11 @@ struct FileRow: View {
                 .padding(.horizontal, 6)
         )
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { onDoubleTap() }
-        .onTapGesture(count: 1) { onTap() }
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded { onDoubleTap() }
+        )
+        .simultaneousGesture(
+            TapGesture(count: 1).onEnded { onTap() }
+        )
     }
 }

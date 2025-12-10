@@ -58,10 +58,11 @@ struct SyncControls: View {
         // Get selected files from the source browser based on direction
         let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
 
-        // Debug: log selection state
+        // Log selection state to sync log
         let selectedCount = sourceBrowser.selectedItems.count
-        let itemCount = sourceBrowser.items.count
-        print("DEBUG: Direction=\(direction == .leftToRight ? "→" : "←"), Selected=\(selectedCount)/\(itemCount)")
+        let directionStr = direction == .leftToRight ? "LEFT → RIGHT" : "RIGHT → LEFT"
+        syncManager.addLog("Direction: \(directionStr)")
+        syncManager.addLog("Source has \(selectedCount) item(s) selected")
 
         // Build selected file paths (with remote prefix if needed)
         let selectedPaths: [String] = sourceBrowser.items
@@ -74,7 +75,9 @@ struct SyncControls: View {
                 }
             }
 
-        print("DEBUG: selectedPaths=\(selectedPaths)")
+        for path in selectedPaths {
+            syncManager.addLog("  → \(path)")
+        }
 
         syncManager.selectedFilePaths = selectedPaths
         syncManager.sync(mode: mode, direction: direction)
