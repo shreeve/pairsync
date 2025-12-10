@@ -2,6 +2,8 @@
 
 A beautiful dual-pane file synchronization app for macOS, built with SwiftUI.
 
+![PairSync Screenshot](pairsync.jpg)
+
 **No Xcode required** — just `swift build` and run!
 
 ## Features
