@@ -7,40 +7,57 @@ A beautiful dual-pane file synchronization app for macOS, built with SwiftUI.
 ## Features
 
 - **Dual-Pane Browser**: View source and destination side-by-side
+- **Selective Sync**: Select specific files or sync entire directories
 - **Local & Remote**: Sync to local directories or remote servers via SSH
 - **Two Sync Modes**:
   - **Force**: `rsync -haz --info=name,del --delete --force-delete` (mirror, deletes extras)
   - **Slurp**: `rsync -haz --info=name` (copy only, preserves destination)
 - **Bidirectional**: Sync left→right or right←left
-- **Live Log**: Real-time rsync output
+- **Light/Dark Theme**: Toggle with sun/moon button, persists across sessions
+- **Live Log**: Real-time rsync output with cancel support
 
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
 - Swift 5.9+
-- rsync (pre-installed on macOS)
+- rsync (uses Homebrew version if available, falls back to system)
 
 ## Build & Run
 
-```bash
-# Build
-swift build
-
-# Run
-.build/debug/PairSync
-```
-
-Or in one command:
+### Quick Start (Debug)
 
 ```bash
 swift build && .build/debug/PairSync
 ```
 
+### Standalone App Bundle
+
+Build a proper `.app` that runs independently:
+
+```bash
+./Scripts/build-app.sh
+open dist/PairSync.app
+```
+
+Or create a DMG for distribution:
+
+```bash
+./Scripts/build-app.sh --dmg
+```
+
+See [LAUNCH.md](LAUNCH.md) for details on how standalone app bundles work.
+
 ## Usage
 
 1. **Select directories** using the folder icon in each pane
-2. **Choose direction** with the arrow buttons (→ or ←)
-3. **Click Force or Slurp** to sync
+2. **Choose direction** by clicking the arrow toggle (→ or ←)
+3. **Select files** (optional) — click to select, click again to deselect
+4. **Click Force or Slurp** to sync
+
+### Selective Sync
+
+- **No files selected**: Syncs the entire current directory
+- **Files selected**: Syncs only the selected files/folders
 
 ### Keyboard Shortcuts
 
@@ -58,7 +75,7 @@ swift build && .build/debug/PairSync
 3. Enter host: `user@server.com`
 4. Enter path: `/home/user/backup`
 
-**Note**: SSH key auth must be configured (no password prompts in GUI).
+**Note**: SSH key authentication must be configured (no password prompts in GUI).
 
 ## Project Structure
 
@@ -66,16 +83,23 @@ swift build && .build/debug/PairSync
 pairsync/
 ├── Package.swift
 ├── README.md
+├── LAUNCH.md
+├── Scripts/
+│   └── build-app.sh        # Creates standalone .app bundle
 └── Sources/
-    ├── PairSyncApp.swift      # App entry
-    ├── Models.swift           # Data models + SyncManager
+    ├── PairSyncApp.swift      # App entry point
+    ├── Models.swift           # Data models, SyncManager, ThemeManager
     ├── ContentView.swift      # Main layout
     ├── FileBrowserPane.swift  # File list view
-    ├── SyncControls.swift     # Sync buttons
-    ├── LogPanel.swift         # rsync output
-    ├── RemotePane.swift       # SSH config
-    └── SettingsSheet.swift    # Settings
+    ├── SyncControls.swift     # Sync buttons & direction toggle
+    ├── LogPanel.swift         # rsync output viewer
+    ├── RemotePane.swift       # SSH remote configuration
+    └── SettingsSheet.swift    # Settings modal
 ```
+
+## Version
+
+0.5.0
 
 ## License
 
