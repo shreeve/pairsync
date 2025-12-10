@@ -11,7 +11,8 @@ struct PairSyncApp: App {
                 .environmentObject(syncManager)
                 .environmentObject(theme)
         }
-        .windowStyle(.hiddenTitleBar)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified(showsTitle: false))
         .defaultSize(width: 1400, height: 900)
         .commands {
             CommandGroup(replacing: .newItem) {}
@@ -47,4 +48,5 @@ extension Notification.Name {
     static let slurpSync = Notification.Name("slurpSync")
     static let forceSyncReverse = Notification.Name("forceSyncReverse")
     static let slurpSyncReverse = Notification.Name("slurpSyncReverse")
+    static let syncCompleted = Notification.Name("syncCompleted")
 }

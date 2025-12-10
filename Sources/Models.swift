@@ -370,17 +370,24 @@ class SyncManager: ObservableObject {
     @Published var syncProgress = ""
     @Published var syncLogs: [SyncLog] = []
     @Published var showingLog = false
+    @Published var lastSyncDirection: SyncDirection?  // Track direction for refresh
 
     private var syncTask: Process?
 
     func sync(mode: SyncMode, direction: SyncDirection) {
         guard !isSyncing else { return }
 
+        // Track direction for post-sync refresh
+        lastSyncDirection = direction
+
         // If specific files are selected, sync them individually
         if !selectedFilePaths.isEmpty {
+            addLog("Syncing \(selectedFilePaths.count) selected item(s)")
             syncSelectedFiles(mode: mode, direction: direction)
             return
         }
+
+        addLog("No files selected - syncing entire directory")
 
         // Otherwise sync the entire directory
         let source: String
@@ -494,6 +501,8 @@ class SyncManager: ObservableObject {
                 if proc.terminationStatus == 0 {
                     self?.addLog("✓ Sync completed successfully")
                     self?.syncProgress = "Sync completed"
+                    // Notify to refresh destination pane
+                    NotificationCenter.default.post(name: .syncCompleted, object: self?.lastSyncDirection)
                 } else {
                     self?.addLog("✗ Sync failed (exit: \(proc.terminationStatus))", isError: true)
                     self?.syncProgress = "Sync failed"

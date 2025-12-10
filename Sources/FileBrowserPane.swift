@@ -108,15 +108,22 @@ struct FileBrowserPane: View {
 
     private var connectionBar: some View {
         HStack(spacing: 8) {
-            Image(systemName: "server.rack")
-                .font(.system(size: 10))
-                .foregroundColor(.cyan)
+            // Connection status indicator
+            if viewModel.connectionStatus == .connecting {
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 14, height: 14)
+            } else {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 10))
+                    .foregroundColor(viewModel.mode.isRemote ? .green : .cyan)
+            }
 
             TextField("user@hostname", text: $viewModel.remoteHost)
                 .textFieldStyle(.plain)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(theme.text1)
-                .disabled(viewModel.mode.isRemote)
+                .disabled(viewModel.mode.isRemote || viewModel.connectionStatus == .connecting)
 
             if viewModel.mode.isRemote {
                 Button("Disconnect") {
@@ -128,6 +135,25 @@ struct FileBrowserPane: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.red.opacity(0.15)))
+                .buttonStyle(.plain)
+            } else if viewModel.connectionStatus == .connecting {
+                // Connecting state
+                HStack(spacing: 4) {
+                    Text("Connecting")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.orange.opacity(0.15)))
+
+                Button {
+                    viewModel.disconnect()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(theme.textMuted)
+                }
                 .buttonStyle(.plain)
             } else {
                 Button("Connect") {

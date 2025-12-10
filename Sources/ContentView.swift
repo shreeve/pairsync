@@ -43,6 +43,16 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .slurpSyncReverse)) { _ in
             runSync(mode: .slurp, direction: .rightToLeft)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .syncCompleted)) { notification in
+            // Refresh the destination pane after successful sync
+            if let direction = notification.object as? SyncDirection {
+                if direction == .leftToRight {
+                    rightBrowser.refresh()
+                } else {
+                    leftBrowser.refresh()
+                }
+            }
+        }
         .sheet(isPresented: $showingSettings) { SettingsSheet() }
         .animation(.easeInOut(duration: 0.25), value: syncManager.showingLog)
     }
@@ -110,7 +120,7 @@ struct ContentView: View {
             }
             .padding(.trailing, 16)
         }
-        .frame(height: 44)
+        .frame(height: 36)
         .background(theme.bgHeader.opacity(0.9))
         .overlay(Rectangle().fill(theme.border2).frame(height: 1), alignment: .bottom)
     }
