@@ -189,6 +189,7 @@ struct FileBrowserPane: View {
                 .background(RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.8)))
                 .buttonStyle(.plain)
                 .disabled(viewModel.remoteHost.isEmpty)
+                .keyboardShortcut(.return, modifiers: .command)
 
                 Button {
                     showConnectionBar = false

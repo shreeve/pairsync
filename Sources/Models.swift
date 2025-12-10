@@ -91,8 +91,7 @@ struct FileItem: Identifiable, Hashable {
     var formattedDate: String {
         guard let date = modificationDate else { return "—" }
         let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
+        formatter.dateFormat = "MM/dd/yy, hh:mm a"
         return formatter.string(from: date)
     }
 

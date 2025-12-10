@@ -81,9 +81,8 @@ struct ContentView: View {
     }
 
     private var titleBar: some View {
-        HStack {
-            Spacer()
-
+        ZStack {
+            // Centered title
             HStack(spacing: 8) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(.system(size: 15, weight: .semibold))
@@ -94,31 +93,34 @@ struct ContentView: View {
                     .foregroundColor(theme.text1)
             }
 
-            Spacer()
+            // Right-aligned buttons
+            HStack {
+                Spacer()
 
-            HStack(spacing: 12) {
-                // Theme toggle
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        theme.theme = theme.isDark ? .light : .dark
+                HStack(spacing: 12) {
+                    // Theme toggle
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            theme.theme = theme.isDark ? .light : .dark
+                        }
+                    } label: {
+                        Image(systemName: theme.isDark ? "sun.max.fill" : "moon.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(theme.isDark ? .yellow : .indigo)
                     }
-                } label: {
-                    Image(systemName: theme.isDark ? "sun.max.fill" : "moon.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(theme.isDark ? .yellow : .indigo)
-                }
-                .buttonStyle(.plain)
-                .help(theme.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
+                    .buttonStyle(.plain)
+                    .help(theme.isDark ? "Switch to Light Mode" : "Switch to Dark Mode")
 
-                // Settings
-                Button { showingSettings = true } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13))
-                        .foregroundColor(theme.text3)
+                    // Settings
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 13))
+                            .foregroundColor(theme.text3)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.trailing, 16)
             }
-            .padding(.trailing, 16)
         }
         .frame(height: 36)
         .background(theme.bgHeader.opacity(0.9))
