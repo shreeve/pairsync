@@ -8,13 +8,16 @@ A beautiful dual-pane file synchronization app for macOS, built with SwiftUI.
 
 - **Dual-Pane Browser**: View source and destination side-by-side
 - **Remote SSH Browsing**: Connect either pane to a remote server via SFTP
-- **Selective Sync**: Select specific files or sync entire directories
+- **Selective Sync**: Select specific files/folders or sync entire directories
+- **Safety Confirmation**: Warns before syncing entire directories
 - **Two Sync Modes**:
   - **Force**: `rsync -haz --info=name,del --delete --force-delete` (mirror, deletes extras)
   - **Slurp**: `rsync -haz --info=name` (copy only, preserves destination)
 - **Bidirectional**: Sync left→right or right←left
 - **Light/Dark Theme**: Toggle with sun/moon button, persists across sessions
-- **Live Log**: Real-time rsync output with cancel support
+- **Live Log**: Real-time rsync output with auto-refresh on completion
+- **Context Menu**: Right-click to open, select, or delete files
+- **Custom App Icon**: Beautiful sync icon matching the app design
 
 ## Requirements
 
@@ -59,12 +62,20 @@ See [LAUNCH.md](LAUNCH.md) for details on how standalone app bundles work.
 
 ### Remote SSH Browsing
 
-1. Click the **wifi icon** in any pane's header
+1. Click the **SSH** button in any pane's header
 2. Enter `user@hostname` (e.g., `deploy@server.com`)
-3. Click **Connect**
+3. Press **Enter** or **⌘Enter** to connect
 4. Browse the remote filesystem just like local files!
 
 The pane will show a **green border** when connected remotely.
+
+### Selecting Files
+
+- **Click** a file/folder to select (checkmark appears)
+- **Click again** to deselect
+- Use **All / None** links in breadcrumb bar
+- Use header icons: ✓○ (select all) and ○ (select none)
+- Keyboard shortcuts for each pane (see below)
 
 ### Syncing
 
@@ -73,17 +84,32 @@ The pane will show a **green border** when connected remotely.
 3. Click **Force** or **Slurp** to sync
 
 **Selective Sync:**
-- No files selected → syncs entire current directory
-- Files selected → syncs only selected items
+- Files selected → syncs only those items (folder itself, not just contents)
+- No files selected → confirmation dialog, then syncs entire directory
+
+### Right-Click Context Menu
+
+Right-click any file or folder for:
+- **Open** — Navigate into folder
+- **Select/Deselect** — Toggle selection
+- **Delete** — Remove with confirmation (works local and remote!)
 
 ### Keyboard Shortcuts
 
 | Keys | Action |
 |------|--------|
+| **Sync** | |
 | ⇧⌘F | Force Sync → |
 | ⇧⌘S | Slurp Sync → |
 | ⌥⌘F | ← Force Sync |
 | ⌥⌘S | ← Slurp Sync |
+| **Selection** | |
+| ⇧⌘A | Select All - Left Pane |
+| ⌥⌘A | Select All - Right Pane |
+| ⇧⌘D | Deselect All - Left Pane |
+| ⌥⌘D | Deselect All - Right Pane |
+| **Connection** | |
+| ⌘↩ | Connect (in SSH field) |
 
 ## Sync Combinations
 
@@ -101,21 +127,24 @@ pairsync/
 ├── Package.swift
 ├── README.md
 ├── LAUNCH.md
+├── Resources/
+│   └── AppIcon.icns          # App icon
 ├── Scripts/
-│   └── build-app.sh        # Creates standalone .app bundle
+│   ├── build-app.sh          # Creates standalone .app bundle
+│   └── create-icon.swift     # Generates app icon from SF Symbols
 └── Sources/
-    ├── PairSyncApp.swift      # App entry point
-    ├── Models.swift           # Data models, SyncManager, ThemeManager
-    ├── ContentView.swift      # Main layout
-    ├── FileBrowserPane.swift  # File list + SSH connection
-    ├── SyncControls.swift     # Sync buttons & direction toggle
-    ├── LogPanel.swift         # rsync output viewer
-    └── SettingsSheet.swift    # Settings modal
+    ├── PairSyncApp.swift     # App entry point & menu commands
+    ├── Models.swift          # Data models, SyncManager, ThemeManager
+    ├── ContentView.swift     # Main layout
+    ├── FileBrowserPane.swift # File list + SSH connection
+    ├── SyncControls.swift    # Sync buttons & direction toggle
+    ├── LogPanel.swift        # rsync output viewer
+    └── SettingsSheet.swift   # Settings modal
 ```
 
 ## Version
 
-0.5.0
+0.6.0
 
 ## License
 

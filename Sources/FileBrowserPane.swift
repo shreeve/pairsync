@@ -111,9 +111,9 @@ struct FileBrowserPane: View {
                 IconButton(icon: "chevron.left", disabled: viewModel.currentPath == nil) { viewModel.navigateUp() }
                 IconButton(icon: "house", disabled: false) { viewModel.navigateToHome() }
                 IconButton(icon: "arrow.clockwise", disabled: viewModel.currentPath == nil) { viewModel.refresh() }
-                
+
                 Divider().frame(height: 14).padding(.horizontal, 2)
-                
+
                 IconButton(icon: "checkmark.circle", disabled: viewModel.items.isEmpty, tooltip: "Select All (⌘A)") {
                     viewModel.selectedItems = Set(viewModel.items.map { $0.id })
                 }

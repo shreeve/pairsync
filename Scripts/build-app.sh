@@ -12,7 +12,7 @@ set -e
 # Configuration
 APP_NAME="PairSync"
 BUNDLE_ID="com.pairsync.app"
-VERSION="0.5.0"
+VERSION="0.6.0"
 BUILD_NUMBER="1"
 MIN_MACOS="14.0"
 
@@ -160,4 +160,3 @@ echo "   • Install: cp -R \"$APP_BUNDLE\" /Applications/"
 if [ "$1" != "--dmg" ]; then
     echo "   • Create DMG: $0 --dmg"
 fi
-
