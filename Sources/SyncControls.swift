@@ -51,16 +51,25 @@ struct SyncControls: View {
     }
 
     private func prepareSyncAndRun(mode: SyncMode) {
-        syncManager.leftPath = leftBrowser.currentPath
-        syncManager.rightPath = rightBrowser.currentPath
+        // Use syncPath which handles both local and remote paths
+        syncManager.leftSyncPath = leftBrowser.syncPath
+        syncManager.rightSyncPath = rightBrowser.syncPath
 
         // Get selected files from the source browser based on direction
         let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
-        let selectedURLs = sourceBrowser.items
-            .filter { sourceBrowser.selectedItems.contains($0.id) }
-            .map { $0.url }
 
-        syncManager.selectedFiles = selectedURLs
+        // Build selected file paths (with remote prefix if needed)
+        let selectedPaths: [String] = sourceBrowser.items
+            .filter { sourceBrowser.selectedItems.contains($0.id) }
+            .map { item in
+                if case .remote(let host) = sourceBrowser.mode {
+                    return "\(host):\(item.url.path)"
+                } else {
+                    return item.url.path
+                }
+            }
+
+        syncManager.selectedFilePaths = selectedPaths
         syncManager.sync(mode: mode, direction: direction)
     }
 }

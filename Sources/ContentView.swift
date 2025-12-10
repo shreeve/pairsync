@@ -19,14 +19,9 @@ struct ContentView: View {
                 titleBar
 
                 HStack(spacing: 0) {
-                    FileBrowserPane(viewModel: leftBrowser, title: "Source")
+                    FileBrowserPane(viewModel: leftBrowser, title: "Local")
                     SyncControls(leftBrowser: leftBrowser, rightBrowser: rightBrowser, direction: $syncDirection)
-
-                    if syncManager.isRemoteRight {
-                        RemotePane()
-                    } else {
-                        FileBrowserPane(viewModel: rightBrowser, title: "Destination")
-                    }
+                    FileBrowserPane(viewModel: rightBrowser, title: "Local")
                 }
 
                 if syncManager.showingLog {
@@ -53,16 +48,25 @@ struct ContentView: View {
     }
 
     private func runSync(mode: SyncMode, direction: SyncDirection) {
-        syncManager.leftPath = leftBrowser.currentPath
-        syncManager.rightPath = rightBrowser.currentPath
+        // Use syncPath which handles both local and remote paths
+        syncManager.leftSyncPath = leftBrowser.syncPath
+        syncManager.rightSyncPath = rightBrowser.syncPath
 
         // Get selected files from the source browser
         let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
-        let selectedURLs = sourceBrowser.items
-            .filter { sourceBrowser.selectedItems.contains($0.id) }
-            .map { $0.url }
 
-        syncManager.selectedFiles = selectedURLs
+        // Build selected file paths (with remote prefix if needed)
+        let selectedPaths: [String] = sourceBrowser.items
+            .filter { sourceBrowser.selectedItems.contains($0.id) }
+            .map { item in
+                if case .remote(let host) = sourceBrowser.mode {
+                    return "\(host):\(item.url.path)"
+                } else {
+                    return item.url.path
+                }
+            }
+
+        syncManager.selectedFilePaths = selectedPaths
         syncManager.sync(mode: mode, direction: direction)
     }
 

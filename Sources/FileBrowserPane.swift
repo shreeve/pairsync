@@ -5,13 +5,21 @@ struct FileBrowserPane: View {
     @ObservedObject var viewModel: FileBrowserViewModel
     let title: String
     @State private var hoveredItem: UUID?
+    @State private var showConnectionBar = false
 
     var body: some View {
         VStack(spacing: 0) {
             header
+
+            if showConnectionBar || viewModel.mode.isRemote {
+                connectionBar
+            }
+
             breadcrumbs
 
-            if viewModel.currentPath == nil {
+            if viewModel.mode.isRemote && viewModel.connectionStatus != .connected {
+                connectionState
+            } else if viewModel.currentPath == nil && !viewModel.mode.isRemote {
                 emptyState
             } else if viewModel.isLoading {
                 loadingState
@@ -28,27 +36,69 @@ struct FileBrowserPane: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(LinearGradient(colors: [theme.border1, theme.border2], startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                .strokeBorder(
+                    viewModel.mode.isRemote
+                        ? LinearGradient(colors: [.green.opacity(0.4), .green.opacity(0.1)], startPoint: .top, endPoint: .bottom)
+                        : LinearGradient(colors: [theme.border1, theme.border2], startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
         )
         .padding(10)
     }
 
     private var header: some View {
         HStack {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(theme.text2)
+            // Title with connection indicator
+            HStack(spacing: 6) {
+                if viewModel.mode.isRemote {
+                    Circle()
+                        .fill(viewModel.connectionStatus == .connected ? .green : .orange)
+                        .frame(width: 6, height: 6)
+                }
+                Text(viewModel.mode.isRemote ? (viewModel.mode.host ?? "Remote") : title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(theme.text2)
+                    .lineLimit(1)
+            }
 
             Spacer()
 
             HStack(spacing: 2) {
+                // SSH toggle button - server icon
+                Button {
+                    if viewModel.mode.isRemote {
+                        viewModel.disconnect()
+                        showConnectionBar = false
+                    } else {
+                        showConnectionBar.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "server.rack")
+                            .font(.system(size: 10, weight: .medium))
+                        Text(viewModel.mode.isRemote ? "SSH" : "SSH")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundColor(viewModel.mode.isRemote ? .green : (showConnectionBar ? .cyan : theme.textMuted))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(viewModel.mode.isRemote ? Color.green.opacity(0.15) : (showConnectionBar ? Color.cyan.opacity(0.15) : theme.hoverBg))
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Divider().frame(height: 14).padding(.horizontal, 2)
+
                 IconButton(icon: "chevron.left", disabled: viewModel.currentPath == nil) { viewModel.navigateUp() }
                 IconButton(icon: "house", disabled: false) { viewModel.navigateToHome() }
                 IconButton(icon: "arrow.clockwise", disabled: viewModel.currentPath == nil) { viewModel.refresh() }
 
-                Divider().frame(height: 14).padding(.horizontal, 4)
-
-                IconButton(icon: "folder.badge.plus", disabled: false) { viewModel.selectDirectory() }
+                if !viewModel.mode.isRemote {
+                    Divider().frame(height: 14).padding(.horizontal, 2)
+                    IconButton(icon: "folder.badge.plus", disabled: false) { viewModel.selectDirectory() }
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -56,9 +106,66 @@ struct FileBrowserPane: View {
         .background(theme.bg4)
     }
 
+    private var connectionBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "server.rack")
+                .font(.system(size: 10))
+                .foregroundColor(.cyan)
+
+            TextField("user@hostname", text: $viewModel.remoteHost)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(theme.text1)
+                .disabled(viewModel.mode.isRemote)
+
+            if viewModel.mode.isRemote {
+                Button("Disconnect") {
+                    viewModel.disconnect()
+                    showConnectionBar = false
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.red)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.red.opacity(0.15)))
+                .buttonStyle(.plain)
+            } else {
+                Button("Connect") {
+                    viewModel.connect(to: viewModel.remoteHost)
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.green.opacity(0.8)))
+                .buttonStyle(.plain)
+                .disabled(viewModel.remoteHost.isEmpty)
+
+                Button {
+                    showConnectionBar = false
+                    viewModel.remoteHost = ""
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(theme.textMuted)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(theme.bg5)
+    }
+
     private var breadcrumbs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
+                if viewModel.mode.isRemote {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 9))
+                        .foregroundColor(.green)
+                }
+
                 ForEach(Array(viewModel.breadcrumbs.enumerated()), id: \.element) { i, url in
                     if i > 0 {
                         Image(systemName: "chevron.right")
@@ -94,6 +201,53 @@ struct FileBrowserPane: View {
             }
             .padding(.vertical, 4)
         }
+    }
+
+    private var connectionState: some View {
+        VStack(spacing: 14) {
+            switch viewModel.connectionStatus {
+            case .connecting:
+                ProgressView()
+                    .scaleEffect(0.8)
+                    .tint(.cyan)
+                Text("Connecting...")
+                    .font(.system(size: 13))
+                    .foregroundColor(theme.textMuted)
+
+            case .failed(let message):
+                Image(systemName: "wifi.exclamationmark")
+                    .font(.system(size: 36))
+                    .foregroundColor(.red.opacity(0.7))
+                Text("Connection Failed")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(theme.text2)
+                Text(message)
+                    .font(.system(size: 11))
+                    .foregroundColor(theme.textMuted)
+                    .multilineTextAlignment(.center)
+                Button("Try Again") {
+                    viewModel.connect(to: viewModel.remoteHost)
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.cyan))
+                .buttonStyle(.plain)
+
+            case .disconnected:
+                Image(systemName: "server.rack")
+                    .font(.system(size: 36))
+                    .foregroundColor(theme.textMuted.opacity(0.5))
+                Text("Not Connected")
+                    .font(.system(size: 13))
+                    .foregroundColor(theme.textMuted)
+
+            case .connected:
+                EmptyView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
@@ -152,6 +306,7 @@ struct IconButton: View {
     @EnvironmentObject var theme: ThemeManager
     let icon: String
     let disabled: Bool
+    var highlighted: Bool = false
     let action: () -> Void
     @State private var isHovered = false
 
@@ -159,7 +314,10 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(disabled ? theme.textMuted.opacity(0.25) : (isHovered ? theme.text1 : theme.textMuted))
+                .foregroundColor(
+                    disabled ? theme.textMuted.opacity(0.25) :
+                    (highlighted ? .green : (isHovered ? theme.text1 : theme.textMuted))
+                )
                 .frame(width: 22, height: 22)
                 .background(RoundedRectangle(cornerRadius: 5).fill(isHovered && !disabled ? theme.hoverBg : .clear))
         }

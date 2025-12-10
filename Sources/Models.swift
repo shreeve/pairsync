@@ -72,11 +72,9 @@ struct FileItem: Identifiable, Hashable {
     let isDirectory: Bool
     let size: Int64
     let modificationDate: Date?
-    var children: [FileItem]?
-    var isExpanded: Bool = false
 
     var icon: String {
-        if isDirectory { return isExpanded ? "folder.fill" : "folder" }
+        if isDirectory { return "folder" }
         return iconForExtension(url.pathExtension.lowercased())
     }
 
@@ -135,7 +133,7 @@ struct FileItem: Identifiable, Hashable {
     static func == (lhs: FileItem, rhs: FileItem) -> Bool { lhs.id == rhs.id }
 }
 
-// MARK: - FileSystemManager
+// MARK: - FileSystemManager (Local)
 
 class FileSystemManager {
     static let shared = FileSystemManager()
@@ -163,6 +161,155 @@ class FileSystemManager {
             }
         } catch {
             return []
+        }
+    }
+}
+
+// MARK: - RemoteFileSystemManager (SFTP)
+
+class RemoteFileSystemManager {
+    let host: String
+
+    init(host: String) {
+        self.host = host
+    }
+
+    func loadDirectory(at path: String) async -> [FileItem] {
+        // Use sftp in batch mode to list directory
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
+        process.arguments = ["-b", "-", host]
+
+        let inputPipe = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+
+        process.standardInput = inputPipe
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        // SFTP commands: cd to path, then list with details
+        let commands = "cd \"\(path)\"\nls -la\n"
+
+        do {
+            try process.run()
+            inputPipe.fileHandleForWriting.write(commands.data(using: .utf8)!)
+            inputPipe.fileHandleForWriting.closeFile()
+
+            process.waitUntilExit()
+
+            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: outputData, encoding: .utf8) else { return [] }
+
+            return parseLsOutput(output, basePath: path)
+        } catch {
+            return []
+        }
+    }
+
+    private func parseLsOutput(_ output: String, basePath: String) -> [FileItem] {
+        var items: [FileItem] = []
+        let lines = output.components(separatedBy: .newlines)
+
+        for line in lines {
+            // Skip empty lines, headers, and . / .. entries
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("sftp>") || trimmed.hasPrefix("total") { continue }
+            if trimmed.hasSuffix(" .") || trimmed.hasSuffix(" ..") { continue }
+
+            // Parse ls -la output: drwxr-xr-x  5 user group  160 Jan  1 12:00 filename
+            let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
+            guard parts.count >= 9 else { continue }
+
+            let permissions = String(parts[0])
+            let isDirectory = permissions.hasPrefix("d")
+            let size = Int64(parts[4]) ?? 0
+            let name = parts[8...].joined(separator: " ")
+
+            // Skip hidden files
+            if name.hasPrefix(".") { continue }
+
+            // Parse date (approximate - ls format varies)
+            let dateStr = "\(parts[5]) \(parts[6]) \(parts[7])"
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MMM d HH:mm"
+            let date = dateFormatter.date(from: dateStr)
+
+            let fullPath = basePath.hasSuffix("/") ? basePath + name : basePath + "/" + name
+            let url = URL(fileURLWithPath: fullPath)
+
+            items.append(FileItem(
+                url: url,
+                name: name,
+                isDirectory: isDirectory,
+                size: size,
+                modificationDate: date
+            ))
+        }
+
+        return items.sorted { a, b in
+            if a.isDirectory != b.isDirectory { return a.isDirectory }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+        }
+    }
+
+    func testConnection() async -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
+        process.arguments = ["-b", "-", host]
+
+        let inputPipe = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+
+        process.standardInput = inputPipe
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+            inputPipe.fileHandleForWriting.write("pwd\nquit\n".data(using: .utf8)!)
+            inputPipe.fileHandleForWriting.closeFile()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    func getHomeDirectory() async -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sftp")
+        process.arguments = ["-b", "-", host]
+
+        let inputPipe = Pipe()
+        let outputPipe = Pipe()
+
+        process.standardInput = inputPipe
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            inputPipe.fileHandleForWriting.write("pwd\nquit\n".data(using: .utf8)!)
+            inputPipe.fileHandleForWriting.closeFile()
+            process.waitUntilExit()
+
+            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: outputData, encoding: .utf8) else { return nil }
+
+            // Parse: Remote working directory: /home/user
+            for line in output.components(separatedBy: .newlines) {
+                if line.contains("working directory:") {
+                    let parts = line.components(separatedBy: ":")
+                    if parts.count >= 2 {
+                        return parts[1].trimmingCharacters(in: .whitespaces)
+                    }
+                }
+            }
+            return nil
+        } catch {
+            return nil
         }
     }
 }
@@ -216,12 +363,9 @@ struct SyncLog: Identifiable {
 
 @MainActor
 class SyncManager: ObservableObject {
-    @Published var leftPath: URL?
-    @Published var rightPath: URL?
-    @Published var selectedFiles: [URL] = []  // Selected files to sync
-    @Published var isRemoteRight = false
-    @Published var remoteHost = ""
-    @Published var remotePath = ""
+    @Published var leftSyncPath: String = ""      // Can be local path or user@host:/path
+    @Published var rightSyncPath: String = ""     // Can be local path or user@host:/path
+    @Published var selectedFilePaths: [String] = []  // Selected file paths (can include remote prefix)
     @Published var isSyncing = false
     @Published var syncProgress = ""
     @Published var syncLogs: [SyncLog] = []
@@ -233,7 +377,7 @@ class SyncManager: ObservableObject {
         guard !isSyncing else { return }
 
         // If specific files are selected, sync them individually
-        if !selectedFiles.isEmpty {
+        if !selectedFilePaths.isEmpty {
             syncSelectedFiles(mode: mode, direction: direction)
             return
         }
@@ -243,25 +387,15 @@ class SyncManager: ObservableObject {
         let destination: String
 
         if direction == .leftToRight {
-            guard let left = leftPath else { addLog("No source selected", isError: true); return }
-            source = left.path + "/"
-            if isRemoteRight {
-                guard !remoteHost.isEmpty, !remotePath.isEmpty else { addLog("Remote not configured", isError: true); return }
-                destination = "\(remoteHost):\(remotePath)/"
-            } else {
-                guard let right = rightPath else { addLog("No destination selected", isError: true); return }
-                destination = right.path + "/"
-            }
+            guard !leftSyncPath.isEmpty else { addLog("No source selected", isError: true); return }
+            guard !rightSyncPath.isEmpty else { addLog("No destination selected", isError: true); return }
+            source = leftSyncPath.hasSuffix("/") ? leftSyncPath : leftSyncPath + "/"
+            destination = rightSyncPath.hasSuffix("/") ? rightSyncPath : rightSyncPath + "/"
         } else {
-            if isRemoteRight {
-                guard !remoteHost.isEmpty, !remotePath.isEmpty else { addLog("Remote not configured", isError: true); return }
-                source = "\(remoteHost):\(remotePath)/"
-            } else {
-                guard let right = rightPath else { addLog("No source selected", isError: true); return }
-                source = right.path + "/"
-            }
-            guard let left = leftPath else { addLog("No destination selected", isError: true); return }
-            destination = left.path + "/"
+            guard !rightSyncPath.isEmpty else { addLog("No source selected", isError: true); return }
+            guard !leftSyncPath.isEmpty else { addLog("No destination selected", isError: true); return }
+            source = rightSyncPath.hasSuffix("/") ? rightSyncPath : rightSyncPath + "/"
+            destination = leftSyncPath.hasSuffix("/") ? leftSyncPath : leftSyncPath + "/"
         }
 
         executeRsync(sources: [source], destination: destination, mode: mode)
@@ -271,23 +405,27 @@ class SyncManager: ObservableObject {
         let destination: String
 
         if direction == .leftToRight {
-            if isRemoteRight {
-                guard !remoteHost.isEmpty, !remotePath.isEmpty else { addLog("Remote not configured", isError: true); return }
-                destination = "\(remoteHost):\(remotePath)/"
-            } else {
-                guard let right = rightPath else { addLog("No destination selected", isError: true); return }
-                destination = right.path + "/"
-            }
+            guard !rightSyncPath.isEmpty else { addLog("No destination selected", isError: true); return }
+            destination = rightSyncPath.hasSuffix("/") ? rightSyncPath : rightSyncPath + "/"
         } else {
-            guard let left = leftPath else { addLog("No destination selected", isError: true); return }
-            destination = left.path + "/"
+            guard !leftSyncPath.isEmpty else { addLog("No destination selected", isError: true); return }
+            destination = leftSyncPath.hasSuffix("/") ? leftSyncPath : leftSyncPath + "/"
         }
 
-        // For selected files, add trailing slash only for directories
-        let sources = selectedFiles.map { url -> String in
-            var isDir: ObjCBool = false
-            FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
-            return isDir.boolValue ? url.path + "/" : url.path
+        // For selected files, add trailing slash for directories (local only, can't check remote)
+        let sources = selectedFilePaths.map { path -> String in
+            // Only check if it's a directory for local paths (no colon = local)
+            if !path.contains(":") {
+                var isDir: ObjCBool = false
+                FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+                return isDir.boolValue ? path + "/" : path
+            }
+            // For remote paths, assume directories need trailing slash based on no extension
+            let lastComponent = (path as NSString).lastPathComponent
+            if !lastComponent.contains(".") {
+                return path + "/"
+            }
+            return path
         }
 
         executeRsync(sources: sources, destination: destination, mode: mode)
@@ -383,21 +521,108 @@ class SyncManager: ObservableObject {
 
 // MARK: - FileBrowserViewModel
 
+enum ConnectionMode: Equatable {
+    case local
+    case remote(host: String)
+
+    var isRemote: Bool {
+        if case .remote = self { return true }
+        return false
+    }
+
+    var host: String? {
+        if case .remote(let h) = self { return h }
+        return nil
+    }
+}
+
+enum ConnectionStatus: Equatable {
+    case disconnected
+    case connecting
+    case connected
+    case failed(String)
+
+    var isConnected: Bool { self == .connected }
+}
+
 @MainActor
 class FileBrowserViewModel: ObservableObject {
     @Published var currentPath: URL?
+    @Published var remotePath: String = ""
     @Published var items: [FileItem] = []
     @Published var selectedItems: Set<UUID> = []
     @Published var isLoading = false
     @Published var breadcrumbs: [URL] = []
 
+    // Remote connection
+    @Published var mode: ConnectionMode = .local
+    @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var remoteHost: String = ""
+
     private nonisolated let fileManager = FileSystemManager.shared
+    private var remoteFileManager: RemoteFileSystemManager?
 
     init(initialPath: URL? = nil) {
         if let path = initialPath { navigateTo(path) }
     }
 
+    // MARK: - Connection Management
+
+    func connect(to host: String) {
+        guard !host.isEmpty else { return }
+
+        connectionStatus = .connecting
+        remoteFileManager = RemoteFileSystemManager(host: host)
+
+        Task {
+            let success = await remoteFileManager!.testConnection()
+            if success {
+                mode = .remote(host: host)
+                connectionStatus = .connected
+
+                // Navigate to home directory
+                if let home = await remoteFileManager!.getHomeDirectory() {
+                    remotePath = home
+                    await loadRemoteDirectory(home)
+                } else {
+                    remotePath = "/"
+                    await loadRemoteDirectory("/")
+                }
+            } else {
+                connectionStatus = .failed("Connection failed. Check SSH key auth.")
+                remoteFileManager = nil
+            }
+        }
+    }
+
+    func disconnect() {
+        mode = .local
+        connectionStatus = .disconnected
+        remoteFileManager = nil
+        remotePath = ""
+        items = []
+        breadcrumbs = []
+        selectedItems.removeAll()
+
+        // Return to local home
+        navigateTo(FileManager.default.homeDirectoryForCurrentUser)
+    }
+
+    // MARK: - Navigation
+
     func navigateTo(_ url: URL) {
+        if case .remote = mode {
+            Task { await loadRemoteDirectory(url.path) }
+        } else {
+            loadLocalDirectory(url)
+        }
+    }
+
+    func navigateToRemotePath(_ path: String) {
+        Task { await loadRemoteDirectory(path) }
+    }
+
+    private func loadLocalDirectory(_ url: URL) {
         isLoading = true
         currentPath = url
         updateBreadcrumbs()
@@ -413,11 +638,53 @@ class FileBrowserViewModel: ObservableObject {
         }
     }
 
-    func refresh() { if let path = currentPath { navigateTo(path) } }
-    func navigateUp() { if let c = currentPath { navigateTo(c.deletingLastPathComponent()) } }
-    func navigateToHome() { navigateTo(FileManager.default.homeDirectoryForCurrentUser) }
+    private func loadRemoteDirectory(_ path: String) async {
+        guard let rfm = remoteFileManager else { return }
+
+        isLoading = true
+        remotePath = path
+        currentPath = URL(fileURLWithPath: path)
+        updateBreadcrumbs()
+        selectedItems.removeAll()
+
+        let loadedItems = await rfm.loadDirectory(at: path)
+        items = loadedItems
+        isLoading = false
+    }
+
+    func refresh() {
+        if case .remote = mode {
+            Task { await loadRemoteDirectory(remotePath) }
+        } else if let path = currentPath {
+            navigateTo(path)
+        }
+    }
+
+    func navigateUp() {
+        if case .remote = mode {
+            let parent = (remotePath as NSString).deletingLastPathComponent
+            Task { await loadRemoteDirectory(parent) }
+        } else if let c = currentPath {
+            navigateTo(c.deletingLastPathComponent())
+        }
+    }
+
+    func navigateToHome() {
+        if case .remote = mode {
+            Task {
+                if let home = await remoteFileManager?.getHomeDirectory() {
+                    await loadRemoteDirectory(home)
+                }
+            }
+        } else {
+            navigateTo(FileManager.default.homeDirectoryForCurrentUser)
+        }
+    }
 
     func selectDirectory() {
+        // Only works for local mode
+        guard case .local = mode else { return }
+
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -429,18 +696,39 @@ class FileBrowserViewModel: ObservableObject {
     }
 
     private func updateBreadcrumbs() {
-        guard let current = currentPath else { breadcrumbs = []; return }
-        var crumbs: [URL] = []
-        var url = current
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        while url.path != "/" {
-            crumbs.insert(url, at: 0)
-            if url == home { break }
-            url = url.deletingLastPathComponent()
-        }
-        if crumbs.first?.path != "/" && current.path.hasPrefix("/") {
+        if case .remote = mode {
+            // Remote breadcrumbs from path string
+            var crumbs: [URL] = []
+            var path = remotePath
+            while path != "/" && !path.isEmpty {
+                crumbs.insert(URL(fileURLWithPath: path), at: 0)
+                path = (path as NSString).deletingLastPathComponent
+            }
             crumbs.insert(URL(fileURLWithPath: "/"), at: 0)
+            breadcrumbs = crumbs
+        } else {
+            guard let current = currentPath else { breadcrumbs = []; return }
+            var crumbs: [URL] = []
+            var url = current
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            while url.path != "/" {
+                crumbs.insert(url, at: 0)
+                if url == home { break }
+                url = url.deletingLastPathComponent()
+            }
+            if crumbs.first?.path != "/" && current.path.hasPrefix("/") {
+                crumbs.insert(URL(fileURLWithPath: "/"), at: 0)
+            }
+            breadcrumbs = crumbs
         }
-        breadcrumbs = crumbs
+    }
+
+    // MARK: - Path for Sync
+
+    var syncPath: String {
+        if case .remote(let host) = mode {
+            return "\(host):\(remotePath)"
+        }
+        return currentPath?.path ?? ""
     }
 }

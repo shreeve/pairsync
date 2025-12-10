@@ -35,22 +35,43 @@ struct SettingsSheet: View {
                         .pickerStyle(.segmented)
                     }
 
-                    // Destination Type
-                    SettingsSection(title: "Destination Type", icon: "arrow.triangle.branch") {
-                        Picker("Type", selection: $syncManager.isRemoteRight) {
-                            Text("Local Directory").tag(false)
-                            Text("Remote (SSH)").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                    }
+                    // SSH Connection Info
+                    SettingsSection(title: "Remote Connections", icon: "server.rack") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Each pane can connect to a remote server via SSH.")
+                                .font(.system(size: 11))
+                                .foregroundColor(theme.textMuted)
 
-                    // Remote Settings
-                    if syncManager.isRemoteRight {
-                        SettingsSection(title: "Remote Connection", icon: "server.rack") {
-                            VStack(spacing: 10) {
-                                SettingsField(label: "Host", placeholder: "user@hostname", text: $syncManager.remoteHost)
-                                SettingsField(label: "Path", placeholder: "/path/to/directory", text: $syncManager.remotePath)
+                            HStack(spacing: 6) {
+                                Image(systemName: "1.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.cyan)
+                                Text("Click the wifi icon in a pane's header")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.text3)
                             }
+                            HStack(spacing: 6) {
+                                Image(systemName: "2.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.cyan)
+                                Text("Enter user@hostname and click Connect")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.text3)
+                            }
+                            HStack(spacing: 6) {
+                                Image(systemName: "3.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.cyan)
+                                Text("Browse and sync just like local files")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(theme.text3)
+                            }
+
+                            Divider().background(theme.border1).padding(.vertical, 4)
+
+                            Text("⚠️ SSH key authentication must be configured")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
                         }
                     }
 
@@ -72,11 +93,24 @@ struct SettingsSheet: View {
                             ShortcutRow(keys: "⌥⌘S", action: "← Slurp Sync")
                         }
                     }
+
+                    // About
+                    SettingsSection(title: "About", icon: "info.circle") {
+                        HStack {
+                            Text("PairSync")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(theme.text2)
+                            Spacer()
+                            Text("v0.5.0")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(theme.textMuted)
+                        }
+                    }
                 }
                 .padding(20)
             }
         }
-        .frame(width: 460, height: 620)
+        .frame(width: 460, height: 580)
         .background(theme.bg1)
     }
 }
@@ -104,32 +138,6 @@ struct SettingsSection<Content: View>: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(theme.hoverBg)
                         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.border1, lineWidth: 1))
-                )
-        }
-    }
-}
-
-struct SettingsField: View {
-    @EnvironmentObject var theme: ThemeManager
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundColor(theme.textMuted)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(theme.text1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(theme.bg2)
-                        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(theme.border1, lineWidth: 1))
                 )
         }
     }
