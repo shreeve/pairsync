@@ -22,13 +22,58 @@ A beautiful dual-pane file synchronization app for macOS, built with SwiftUI.
 ## Requirements
 
 - macOS 14.0+ (Sonoma)
-- Swift 5.9+
-- rsync (uses Homebrew version if available, falls back to system)
+- Swift 5.9+ (for building from source)
+- rsync 3.x from Homebrew (recommended)
 - SSH key authentication configured (for remote connections)
 
-## Build & Run
+## Setup
 
-### Quick Start (Debug)
+### Install rsync (Required)
+
+PairSync works best with the Homebrew version of rsync, which has more features than the older macOS system version:
+
+```bash
+brew install rsync
+```
+
+Verify it's installed:
+
+```bash
+rsync --version
+# Should show: rsync  version 3.x.x
+```
+
+### SSH Key Setup (For Remote Connections)
+
+If you plan to sync with remote servers, set up passwordless SSH:
+
+```bash
+# Generate a key if you don't have one
+ssh-keygen -t ed25519
+
+# Copy your key to the remote server
+ssh-copy-id user@hostname
+
+# Test the connection (should not prompt for password)
+ssh user@hostname "echo Connected!"
+```
+
+## Install
+
+### Via Homebrew (Recommended)
+
+```bash
+brew tap shreeve/tap
+brew install --cask pairsync
+```
+
+### Download DMG
+
+Download from [GitHub Releases](https://github.com/shreeve/pairsync/releases)
+
+## Build from Source
+
+### Quick Start (Debug Build)
 
 ```bash
 swift build && .build/debug/PairSync
