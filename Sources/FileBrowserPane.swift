@@ -141,6 +141,12 @@ struct FileBrowserPane: View {
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundColor(theme.text1)
                 .disabled(viewModel.mode.isRemote || viewModel.connectionStatus == .connecting)
+                .onSubmit {
+                    // Enter or Cmd+Enter to connect
+                    if !viewModel.remoteHost.isEmpty && !viewModel.mode.isRemote {
+                        viewModel.connect(to: viewModel.remoteHost)
+                    }
+                }
 
             if viewModel.mode.isRemote {
                 Button("Disconnect") {

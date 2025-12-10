@@ -7,6 +7,9 @@ struct SyncControls: View {
     @EnvironmentObject var syncManager: SyncManager
     @Binding var direction: SyncDirection
 
+    @State private var showDirectoryConfirm = false
+    @State private var pendingSyncMode: SyncMode?
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -48,9 +51,39 @@ struct SyncControls: View {
             Spacer().frame(height: 16)
         }
         .frame(width: 90)
+        .alert("Sync Entire Directory?", isPresented: $showDirectoryConfirm) {
+            Button("Cancel", role: .cancel) {
+                pendingSyncMode = nil
+            }
+            Button("Sync All") {
+                if let mode = pendingSyncMode {
+                    executeSync(mode: mode)
+                }
+                pendingSyncMode = nil
+            }
+        } message: {
+            let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
+            let dirName = sourceBrowser.currentPath?.lastPathComponent ?? sourceBrowser.remotePath
+            Text("No files are selected. This will sync the entire \"\(dirName)\" directory.")
+        }
     }
 
     private func prepareSyncAndRun(mode: SyncMode) {
+        // Check if any files are selected
+        let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
+        let hasSelection = !sourceBrowser.selectedItems.isEmpty
+
+        if hasSelection {
+            // Files selected - sync immediately
+            executeSync(mode: mode)
+        } else {
+            // No files selected - show confirmation
+            pendingSyncMode = mode
+            showDirectoryConfirm = true
+        }
+    }
+
+    private func executeSync(mode: SyncMode) {
         // Use syncPath which handles both local and remote paths
         syncManager.leftSyncPath = leftBrowser.syncPath
         syncManager.rightSyncPath = rightBrowser.syncPath
@@ -62,7 +95,12 @@ struct SyncControls: View {
         let selectedCount = sourceBrowser.selectedItems.count
         let directionStr = direction == .leftToRight ? "LEFT → RIGHT" : "RIGHT → LEFT"
         syncManager.addLog("Direction: \(directionStr)")
-        syncManager.addLog("Source has \(selectedCount) item(s) selected")
+
+        if selectedCount > 0 {
+            syncManager.addLog("Syncing \(selectedCount) selected item(s)")
+        } else {
+            syncManager.addLog("Syncing entire directory")
+        }
 
         // Build selected file paths (with remote prefix if needed)
         let selectedPaths: [String] = sourceBrowser.items
