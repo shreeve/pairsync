@@ -15,6 +15,31 @@ struct PairSyncApp: App {
         .defaultSize(width: 1400, height: 900)
         .commands {
             CommandGroup(replacing: .newItem) {}
+
+            CommandMenu("Selection") {
+                Button("Select All - Left Pane") {
+                    NotificationCenter.default.post(name: .selectAllLeft, object: nil)
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+
+                Button("Select All - Right Pane") {
+                    NotificationCenter.default.post(name: .selectAllRight, object: nil)
+                }
+                .keyboardShortcut("a", modifiers: [.command, .option])
+
+                Divider()
+
+                Button("Deselect All - Left Pane") {
+                    NotificationCenter.default.post(name: .deselectAllLeft, object: nil)
+                }
+                .keyboardShortcut("d", modifiers: [.command, .shift])
+
+                Button("Deselect All - Right Pane") {
+                    NotificationCenter.default.post(name: .deselectAllRight, object: nil)
+                }
+                .keyboardShortcut("d", modifiers: [.command, .option])
+            }
+
             CommandMenu("Sync") {
                 Button("Force Sync →") {
                     NotificationCenter.default.post(name: .forceSync, object: nil)
@@ -48,4 +73,8 @@ extension Notification.Name {
     static let forceSyncReverse = Notification.Name("forceSyncReverse")
     static let slurpSyncReverse = Notification.Name("slurpSyncReverse")
     static let syncCompleted = Notification.Name("syncCompleted")
+    static let selectAllLeft = Notification.Name("selectAllLeft")
+    static let selectAllRight = Notification.Name("selectAllRight")
+    static let deselectAllLeft = Notification.Name("deselectAllLeft")
+    static let deselectAllRight = Notification.Name("deselectAllRight")
 }

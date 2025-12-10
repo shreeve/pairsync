@@ -53,6 +53,18 @@ struct ContentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .selectAllLeft)) { _ in
+            leftBrowser.selectedItems = Set(leftBrowser.items.map { $0.id })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .selectAllRight)) { _ in
+            rightBrowser.selectedItems = Set(rightBrowser.items.map { $0.id })
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deselectAllLeft)) { _ in
+            leftBrowser.selectedItems.removeAll()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deselectAllRight)) { _ in
+            rightBrowser.selectedItems.removeAll()
+        }
         .sheet(isPresented: $showingSettings) { SettingsSheet() }
         .animation(.easeInOut(duration: 0.25), value: syncManager.showingLog)
     }

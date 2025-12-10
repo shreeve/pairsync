@@ -418,23 +418,9 @@ class SyncManager: ObservableObject {
             destination = leftSyncPath.hasSuffix("/") ? leftSyncPath : leftSyncPath + "/"
         }
 
-        // For selected files, add trailing slash for directories (local only, can't check remote)
-        let sources = selectedFilePaths.map { path -> String in
-            // Only check if it's a directory for local paths (no colon = local)
-            if !path.contains(":") {
-                var isDir: ObjCBool = false
-                FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
-                return isDir.boolValue ? path + "/" : path
-            }
-            // For remote paths, assume directories need trailing slash based on no extension
-            let lastComponent = (path as NSString).lastPathComponent
-            if !lastComponent.contains(".") {
-                return path + "/"
-            }
-            return path
-        }
-
-        executeRsync(sources: sources, destination: destination, mode: mode)
+        // For selected items, do NOT add trailing slash - we want to sync the item itself
+        // (trailing slash would sync the contents, not the folder)
+        executeRsync(sources: selectedFilePaths, destination: destination, mode: mode)
     }
 
     private func executeRsync(sources: [String], destination: String, mode: SyncMode) {

@@ -111,6 +111,15 @@ struct FileBrowserPane: View {
                 IconButton(icon: "chevron.left", disabled: viewModel.currentPath == nil) { viewModel.navigateUp() }
                 IconButton(icon: "house", disabled: false) { viewModel.navigateToHome() }
                 IconButton(icon: "arrow.clockwise", disabled: viewModel.currentPath == nil) { viewModel.refresh() }
+                
+                Divider().frame(height: 14).padding(.horizontal, 2)
+                
+                IconButton(icon: "checkmark.circle", disabled: viewModel.items.isEmpty, tooltip: "Select All (⌘A)") {
+                    viewModel.selectedItems = Set(viewModel.items.map { $0.id })
+                }
+                IconButton(icon: "circle", disabled: viewModel.selectedItems.isEmpty, tooltip: "Select None (⌘D)") {
+                    viewModel.selectedItems.removeAll()
+                }
 
                 if !viewModel.mode.isRemote {
                     Divider().frame(height: 14).padding(.horizontal, 2)
@@ -208,28 +217,51 @@ struct FileBrowserPane: View {
     }
 
     private var breadcrumbs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                if viewModel.mode.isRemote {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 9))
-                        .foregroundColor(.green)
-                }
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    if viewModel.mode.isRemote {
+                        Image(systemName: "server.rack")
+                            .font(.system(size: 9))
+                            .foregroundColor(.green)
+                    }
 
-                ForEach(Array(viewModel.breadcrumbs.enumerated()), id: \.element) { i, url in
-                    if i > 0 {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(theme.textMuted.opacity(0.5))
+                    ForEach(Array(viewModel.breadcrumbs.enumerated()), id: \.element) { i, url in
+                        if i > 0 {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(theme.textMuted.opacity(0.5))
+                        }
+                        BreadcrumbButton(url: url, isLast: i == viewModel.breadcrumbs.count - 1) {
+                            viewModel.navigateTo(url)
+                        }
                     }
-                    BreadcrumbButton(url: url, isLast: i == viewModel.breadcrumbs.count - 1) {
-                        viewModel.navigateTo(url)
-                    }
+                    Spacer()
                 }
-                Spacer()
+                .padding(.horizontal, 14)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+
+            // Select All / None
+            HStack(spacing: 4) {
+                Button("All") {
+                    viewModel.selectedItems = Set(viewModel.items.map { $0.id })
+                }
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(theme.textMuted)
+                .buttonStyle(.plain)
+
+                Text("·")
+                    .font(.system(size: 9))
+                    .foregroundColor(theme.textMuted.opacity(0.5))
+
+                Button("None") {
+                    viewModel.selectedItems.removeAll()
+                }
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(theme.textMuted)
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
         }
         .frame(height: 36)
         .background(theme.bg5)
@@ -385,6 +417,7 @@ struct IconButton: View {
     let icon: String
     let disabled: Bool
     var highlighted: Bool = false
+    var tooltip: String? = nil
     let action: () -> Void
     @State private var isHovered = false
 
@@ -402,6 +435,7 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .onHover { isHovered = $0 }
+        .help(tooltip ?? "")
     }
 }
 
