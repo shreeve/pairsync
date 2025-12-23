@@ -12,7 +12,7 @@ set -e
 # Configuration
 APP_NAME="PairSync"
 BUNDLE_ID="com.pairsync.app"
-VERSION="0.6.0"
+VERSION="0.6.1"
 BUILD_NUMBER="1"
 MIN_MACOS="14.0"
 

@@ -168,9 +168,53 @@ class FileSystemManager {
 
 class RemoteFileSystemManager {
     let host: String
+    var remoteRsyncPath: String?
 
     init(host: String) {
         self.host = host
+    }
+
+    /// Detect the best rsync path on the remote machine
+    func detectRsyncPath() async -> String? {
+        let candidates = [
+            "/opt/homebrew/bin/rsync",  // macOS Apple Silicon
+            "/usr/local/bin/rsync",      // macOS Intel / Linux custom
+            "/usr/bin/rsync"             // System default
+        ]
+
+        for candidate in candidates {
+            if await testRemoteRsync(path: candidate) {
+                remoteRsyncPath = candidate
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private func testRemoteRsync(path: String) async -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
+        process.arguments = [host, "\(path) --version"]
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            if process.terminationStatus == 0 {
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: outputData, encoding: .utf8) ?? ""
+                // Check it's actually rsync (not openrsync which may lack --info)
+                return output.contains("rsync  version 3") || output.contains("rsync version 3")
+            }
+            return false
+        } catch {
+            return false
+        }
     }
 
     func loadDirectory(at path: String) async -> [FileItem] {
@@ -370,6 +414,7 @@ class SyncManager: ObservableObject {
     @Published var syncLogs: [SyncLog] = []
     @Published var showingLog = false
     @Published var lastSyncDirection: SyncDirection?  // Track direction for refresh
+    var remoteRsyncPath: String?  // Path to rsync on remote machine
 
     private var syncTask: Process?
 
@@ -442,11 +487,32 @@ class SyncManager: ObservableObject {
 
         let process = Process()
         // Prefer Homebrew rsync (full-featured) over macOS openrsync
-        let rsyncPath = FileManager.default.fileExists(atPath: "/opt/homebrew/bin/rsync")
-            ? "/opt/homebrew/bin/rsync"
-            : "/usr/bin/rsync"
+        // Check both Apple Silicon (/opt/homebrew) and Intel (/usr/local) paths
+        let rsyncPath: String
+        if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/rsync") {
+            rsyncPath = "/opt/homebrew/bin/rsync"
+        } else if FileManager.default.fileExists(atPath: "/usr/local/bin/rsync") {
+            rsyncPath = "/usr/local/bin/rsync"
+        } else {
+            rsyncPath = "/usr/bin/rsync"
+        }
         process.executableURL = URL(fileURLWithPath: rsyncPath)
-        process.arguments = mode.rsyncFlags + sources + [destination]
+
+        // Check if this is a remote sync (source or destination contains @)
+        let isRemoteSync = sources.contains { $0.contains("@") } || destination.contains("@")
+
+        var arguments = mode.rsyncFlags
+        if isRemoteSync, let remotePath = remoteRsyncPath {
+            arguments.append("--rsync-path=\(remotePath)")
+            addLog("Using local: \(rsyncPath)")
+            addLog("Using remote: \(remotePath)")
+        } else {
+            addLog("Using: \(rsyncPath)")
+        }
+        arguments.append(contentsOf: sources)
+        arguments.append(destination)
+
+        process.arguments = arguments
 
         let pipe = Pipe()
         let errorPipe = Pipe()
@@ -556,6 +622,11 @@ class FileBrowserViewModel: ObservableObject {
     private nonisolated let fileManager = FileSystemManager.shared
     private var remoteFileManager: RemoteFileSystemManager?
 
+    /// The rsync path detected on the remote machine (if connected)
+    var remoteRsyncPath: String? {
+        remoteFileManager?.remoteRsyncPath
+    }
+
     init(initialPath: URL? = nil) {
         if let path = initialPath { navigateTo(path) }
     }
@@ -573,6 +644,13 @@ class FileBrowserViewModel: ObservableObject {
             if success {
                 mode = .remote(host: host)
                 connectionStatus = .connected
+
+                // Detect rsync path on remote machine
+                if let rsyncPath = await remoteFileManager!.detectRsyncPath() {
+                    print("Remote rsync detected: \(rsyncPath)")
+                } else {
+                    print("Warning: No compatible rsync found on remote (need rsync 3.x)")
+                }
 
                 // Navigate to home directory
                 if let home = await remoteFileManager!.getHomeDirectory() {

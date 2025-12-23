@@ -88,6 +88,9 @@ struct SyncControls: View {
         syncManager.leftSyncPath = leftBrowser.syncPath
         syncManager.rightSyncPath = rightBrowser.syncPath
 
+        // Set remote rsync path if either side is remote
+        syncManager.remoteRsyncPath = leftBrowser.remoteRsyncPath ?? rightBrowser.remoteRsyncPath
+
         // Get selected files from the source browser based on direction
         let sourceBrowser = direction == .leftToRight ? leftBrowser : rightBrowser
 

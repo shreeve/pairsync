@@ -98,3 +98,4 @@ if process.terminationStatus == 0 {
 } else {
     print("❌ Failed to create icns file")
 }
+
